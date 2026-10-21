@@ -1,0 +1,34 @@
+name: Job Radar
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # every 15 min (GitHub may start runs a few minutes late)
+  workflow_dispatch:          # lets you hit "Run workflow" manually
+
+permissions:
+  contents: write             # needed to commit seen.json back
+
+concurrency:
+  group: radar
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Scan for new jobs
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python radar.py
+      - name: Save seen jobs
+        run: |
+          git config user.name "job-radar"
+          git config user.email "job-radar@users.noreply.github.com"
+          git add seen.json
+          git diff --staged --quiet || git commit -m "radar: update seen jobs" && git push

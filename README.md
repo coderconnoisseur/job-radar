@@ -1,0 +1,52 @@
+# Job Radar
+
+Checks the careers feeds (Greenhouse, Lever, Ashby, SmartRecruiters) of ~60 companies every
+15 minutes and pings your phone on Telegram when a new SWE intern / entry-level job opens in
+India, or remote-from-anywhere. No dependencies beyond Python 3.11+.
+
+## 1. Make a Telegram bot (2 min)
+
+1. In Telegram, message **@BotFather** → `/newbot` → pick a name. It gives you a **bot token**.
+2. Open your new bot and send it any message (e.g. "hi").
+3. Open `https://api.telegram.org/bot<TOKEN>/getUpdates` in a browser. Find `"chat":{"id":123456789`.
+   That number is your **chat ID**.
+
+Keep the token private. Anyone with it can control your bot.
+
+## 2. Try it locally
+
+```bash
+python radar.py --list
+```
+Shows every job that matches your filters right now. Then test the alert (PowerShell):
+
+```powershell
+$env:TELEGRAM_BOT_TOKEN="<token>"; $env:TELEGRAM_CHAT_ID="<chat id>"; python radar.py --test-alert
+```
+
+## 3. Run it 24/7 for free on GitHub Actions
+
+1. Create a new GitHub repo and push this folder to it.
+   **Public repo** = unlimited free Actions minutes. A private repo gets 2,000 min/month,
+   which isn't enough for every 15 min, so change the cron to `*/30` if you go private.
+2. Repo → Settings → Secrets and variables → Actions → add `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
+3. Actions tab → enable workflows → "Job Radar" → **Run workflow** once.
+   The first run sends a "started" message and saves what's already open. After that you only hear about new jobs.
+
+GitHub pauses scheduled workflows in repos with no activity for 60 days. If alerts stop,
+re-enable the workflow from the Actions tab.
+
+## Tuning
+
+Everything lives in `config.toml`:
+
+- **Add a company:** open one of its job links. The URL shows the hiring system and the
+  company's name in it. Add the line, then verify with `python radar.py --check <slug>`.
+- **Too noisy / too quiet:** edit the `role` / `exclude` regexes. E.g. drop `\bios\b`
+  if you don't want iOS roles, or add `sde[- ]?(2|ii)` to `exclude` if you only want new-grad roles.
+
+## When an alert hits
+
+1. Open the job and paste the JD into Claude to get your resume bullets and a short note tailored to it.
+2. Tap "Find referrers", then message 2–3 engineers there within the hour.
+3. Apply on the portal. Being early + a referral beats being early alone.

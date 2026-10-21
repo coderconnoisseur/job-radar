@@ -1,0 +1,88 @@
+# Job Radar config. Edit freely; the script re-reads this every run.
+#
+# Each company line is  "slug" = "ats"  where ats is one of:
+#   greenhouse | lever | ashby | smartrecruiters
+# To add a company: open one of its job links. The URL tells you both values, e.g.
+#   boards.greenhouse.io/acme/...   ->  "acme" = "greenhouse"
+#   jobs.lever.co/acme/...          ->  "acme" = "lever"
+#   jobs.ashbyhq.com/acme/...       ->  "acme" = "ashby"
+#   jobs.smartrecruiters.com/Acme/  ->  "Acme" = "smartrecruiters"
+# Then run:  python radar.py --check acme
+
+[filters]
+# A job alerts only if its title matches `role`, does NOT match `exclude`,
+# and its location passes the location rules below. (Python regex, case-insensitive.)
+role = '''software|\bsde\b|\bswe\b|developer|back[- ]?end|front[- ]?end|full[- ]?stack|platform engineer|infrastructure engineer|mobile engineer|android|\bios\b|data engineer|ml engineer|machine learning engineer|ai engineer|member of technical staff|new grad|graduate engineer|engineer(ing)? intern|intern.*(engineer|developer|sde|software)'''
+exclude = '''senior|\bsr\.?\b|staff|principal|\blead\b|manager|director|head of|architect|\bvp\b|\biii\b|\biv\b|sales|solutions? engineer|support engineer|customer|field engineer|recruit|\btl\b|\bstl\b|engineer 3|\bl[4-9]\b|sde[- ]?(3|iii)|workday|servicenow|\bsap\b'''
+
+# Locations that always pass.
+india = '''india|bengaluru|bangalore|hyderabad|pune|mumbai|delhi|new delhi|gurgaon|gurugram|noida|chennai|kolkata|ahmedabad|jaipur|kochi'''
+# A remote job passes only if every part of its location is a remote word or a
+# global region. "Remote, Global" passes; "Remote - US" or "Warsaw (Remote)" doesn't.
+remote = '''remote|fully remote|work from home|wfh|distributed'''
+global_region = '''global|worldwide|anywhere|international|apac|asia|asia[- ]pacific|india'''
+
+[companies]
+# --- India product cos / startups ---
+"groww" = "greenhouse"
+"meesho" = "lever"
+"cred" = "lever"
+"zeta" = "lever"
+"paytm" = "lever"
+"fampay" = "lever"
+"slice" = "greenhouse"
+"swiggy" = "smartrecruiters"
+"freshworks" = "smartrecruiters"
+"mindtickle" = "lever"
+"druva" = "greenhouse"
+"inmobi" = "greenhouse"
+"atlan" = "ashby"
+"unacademy" = "smartrecruiters"
+"navi" = "ashby"
+
+# --- Global cos with India engineering offices ---
+"stripe" = "greenhouse"
+"databricks" = "greenhouse"
+"coinbase" = "greenhouse"
+"cloudflare" = "greenhouse"
+"mongodb" = "greenhouse"
+"rubrik" = "greenhouse"
+"datadog" = "greenhouse"
+"okta" = "greenhouse"
+"samsara" = "greenhouse"
+"twilio" = "greenhouse"
+"pinterest" = "greenhouse"
+"reddit" = "greenhouse"
+"instacart" = "greenhouse"
+"toast" = "greenhouse"
+"airbnb" = "greenhouse"
+"anthropic" = "greenhouse"
+"openai" = "ashby"
+"snowflake" = "ashby"
+"clickhouse" = "ashby"
+"elastic" = "greenhouse"
+"grab" = "smartrecruiters"
+"sumologic" = "greenhouse"
+"gusto" = "greenhouse"
+
+# --- Remote-friendly ---
+"gitlab" = "greenhouse"
+"grafanalabs" = "greenhouse"
+"supabase" = "ashby"
+"posthog" = "ashby"
+"temporal" = "ashby"
+"render" = "ashby"
+"vercel" = "greenhouse"
+"netlify" = "greenhouse"
+"mercury" = "greenhouse"
+"dropbox" = "greenhouse"
+"replit" = "ashby"
+"planetscale" = "greenhouse"
+"cockroachlabs" = "greenhouse"
+"discord" = "greenhouse"
+"figma" = "greenhouse"
+"notion" = "ashby"
+"ramp" = "ashby"
+"asana" = "greenhouse"
+"intercom" = "greenhouse"
+"canva" = "smartrecruiters"
