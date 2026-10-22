@@ -1,7 +1,8 @@
 # Job Radar
 
-Checks the careers feeds (Greenhouse, Lever, Ashby, SmartRecruiters, Recruiterflow, MyNextHire)
-of ~85 companies every 10 minutes and pings your phone on Telegram when a new SWE intern / entry-level job opens in
+Checks the careers feeds (Greenhouse, Lever, Ashby, SmartRecruiters, Workday, Recruiterflow,
+MyNextHire, plus Amazon, Microsoft and Atlassian)
+of ~110 companies every 10 minutes and pings your phone on Telegram when a new SWE intern / entry-level job opens in
 India, or remote-from-anywhere. No dependencies beyond Python 3.11+.
 
 ## 1. Make a Telegram bot (2 min)

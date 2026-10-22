@@ -9,6 +9,7 @@
 #   jobs.smartrecruiters.com/Acme/  ->  "Acme" = "smartrecruiters"
 #   recruiterflow.com/acme/jobs     ->  "acme" = "recruiterflow"
 #   acme.mynexthire.com/...         ->  "acme" = "mynexthire"
+#   acme.wd5.myworkdayjobs.com/en-US/AcmeCareers/...  ->  "acme.wd5/AcmeCareers" = "workday"
 # A company on two systems:  "acme" = ["greenhouse", "ashby"]
 # Then run:  python radar.py --check acme
 
@@ -16,7 +17,7 @@
 # A job alerts only if its title matches `role`, does NOT match `exclude`,
 # and its location passes the location rules below. (Python regex, case-insensitive.)
 role = '''software|\bsde\b|\bswe\b|developer|back[- ]?end|front[- ]?end|full[- ]?stack|platform engineer|infrastructure engineer|mobile engineer|android|\bios\b|data engineer|ml engineer|machine learning engineer|ai engineer|member of technical staff|new grad|graduate engineer|engineer(ing)? intern|intern.*(engineer|developer|sde|software)'''
-exclude = '''senior|\bsr\.?\b|staff|principal|\blead\b|manager|director|head of|architect|\bvp\b|\biii\b|\biv\b|sales|solutions? engineer|support engineer|customer|field engineer|recruit|\btl\b|\bstl\b|engineer 3|\bl[4-9]\b|sde[- ]?(3|iii)|workday|servicenow|\bsap\b'''
+exclude = '''senior|\bsr\.?\b|staff|principal|\blead\b|manager|director|head of|architect|\bvp\b|\biii\b|\biv\b|sales|solutions? engineer|support engineer|customer|field engineer|recruit|\btl\b|\bstl\b|engineer 3|\bl[4-9]\b|sde[- ]?(3|iii)|workday|servicenow|\bsap\b|\bmgr\b|vice president|\bavp\b|\bsvp\b|\b[slp]mts\b|digital associate|mainframe'''
 
 # Locations that always pass.
 india = '''india|bengaluru|bangalore|hyderabad|pune|mumbai|delhi|new delhi|gurgaon|gurugram|noida|chennai|kolkata|ahmedabad|jaipur|kochi'''
@@ -125,3 +126,35 @@ global_region = '''global|worldwide|anywhere|international|apac|asia|asia[- ]pac
 "enterpret" = "greenhouse"
 "commure" = "ashby"
 "litellm" = "ashby"
+
+# --- Big tech (own careers APIs) ---
+"amazon" = "amazon"
+"microsoft" = "microsoft"
+"atlassian" = "atlassian"
+
+# --- Big tech / product cos on Workday (key = host/site from their careers URL) ---
+"nvidia.wd5/NVIDIAExternalCareerSite" = "workday"
+"salesforce.wd12/External_Career_Site" = "workday"
+"adobe.wd5/external_experienced" = "workday"
+"intel.wd1/External" = "workday"
+"paypal.wd1/jobs" = "workday"
+"mastercard.wd1/CorporateCareers" = "workday"
+"autodesk.wd1/Ext" = "workday"
+"workday.wd5/Workday" = "workday"
+"target.wd5/targetcareers" = "workday"
+"ebay.wd5/apply" = "workday"
+"cisco.wd5/Cisco_Careers" = "workday"
+"hp.wd5/ExternalCareerSite" = "workday"
+"expedia.wd108/search" = "workday"
+"sprinklr.wd1/careers" = "workday"
+"cadence.wd1/External_Careers" = "workday"
+"analogdevices.wd1/External" = "workday"
+"kla.wd1/Search" = "workday"
+"micron.wd1/External" = "workday"
+"broadcom.wd1/External_Career" = "workday"
+
+# --- Banks / finance tech centres in India (Workday) ---
+"citi.wd5/2" = "workday"
+"ms.wd5/External" = "workday"                    # Morgan Stanley
+"db.wd3/DBWebSite" = "workday"                   # Deutsche Bank
+"blackrock.wd1/BlackRock_Professional" = "workday"

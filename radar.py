@@ -30,10 +30,18 @@ UA = {"User-Agent": "Mozilla/5.0 (job-radar; personal use)"}
 SEEN_TTL_DAYS = 60  # forget closed jobs after this long so seen.json stays small
 
 
-def fetch_json(url):
-    req = urllib.request.Request(url, headers=UA)
-    with urllib.request.urlopen(req, timeout=20) as r:
-        return json.load(r)
+def fetch_json(url, tries=2):
+    for attempt in range(tries):
+        try:
+            req = urllib.request.Request(url, headers=UA)
+            with urllib.request.urlopen(req, timeout=20) as r:
+                return json.load(r)
+        except Exception as e:
+            # retry once on rate limits and timeouts; other errors (404 etc.) fail fast
+            retryable = getattr(e, "code", 429) in (429, 500, 502, 503, 504)
+            if attempt == tries - 1 or not retryable:
+                raise
+            time.sleep(5)
 
 
 def iso_to_ts(s):
@@ -164,8 +172,113 @@ def mynexthire(slug):
     return out
 
 
+def workday_posted(text):
+    # Workday only gives "Posted Today" / "Posted 3 Days Ago" / "Posted 30+ Days Ago"
+    t = (text or "").lower()
+    if "today" in t:
+        days = 0
+    elif "yesterday" in t:
+        days = 1
+    else:
+        m = re.search(r"(\d+)", t)
+        days = int(m.group(1)) if m else None
+    return None if days is None else time.time() - days * 86400
+
+
+def workday(slug):
+    # slug looks like "nvidia.wd5/NVIDIAExternalCareerSite". Results come newest first, so
+    # the latest 60 postings always include anything posted since the previous run.
+    host, site = slug.split("/")
+    tenant = host.split(".")[0]
+    base = f"https://{host}.myworkdayjobs.com/wday/cxs/{tenant}/{site}"
+    hdrs = {**UA, "Content-Type": "application/json", "Accept": "application/json"}
+    out = []
+    for offset in range(0, 60, 20):
+        body = json.dumps({"appliedFacets": {}, "limit": 20, "offset": offset, "searchText": ""}).encode()
+        req = urllib.request.Request(f"{base}/jobs", data=body, headers=hdrs)
+        with urllib.request.urlopen(req, timeout=20) as r:
+            page = json.load(r).get("jobPostings", [])
+        for j in page:
+            path = j.get("externalPath", "")
+            job = {
+                "id": f"wd:{tenant}:{(j.get('bulletFields') or [path])[0]}",
+                "title": j.get("title", ""),
+                "location": j.get("locationsText", ""),
+                "url": f"https://{host}.myworkdayjobs.com/en-US/{site}{path}",
+                "posted": workday_posted(j.get("postedOn")),
+                "posted_text": (j.get("postedOn") or "").replace("Posted ", "").lower(),
+            }
+            if re.fullmatch(r"\d+ Locations", job["location"]):
+                # Multi-location jobs need a detail call to see where they are; matches()
+                # only makes it for jobs whose title already passed the filters.
+                job["resolve"] = lambda path=path: _workday_locations(base, path)
+            out.append(job)
+        if len(page) < 20:
+            break
+    return out
+
+
+def _workday_locations(base, path):
+    info = fetch_json(f"{base}{path}").get("jobPostingInfo", {})
+    return " / ".join([info.get("location", "")] + info.get("additionalLocations", []))
+
+
+def amazon(slug):
+    url = ("https://www.amazon.jobs/en/search.json?normalized_country_code%5B%5D=IND"
+           "&sort=recent&result_limit=100&offset=0")
+    out = []
+    for j in fetch_json(url).get("jobs", []):
+        try:
+            posted = datetime.strptime(j["posted_date"], "%B %d, %Y").replace(tzinfo=timezone.utc).timestamp()
+        except (KeyError, ValueError):
+            posted = None
+        out.append({
+            "id": f"amzn:{j['id_icims']}",
+            "title": j["title"],
+            "location": j.get("normalized_location") or j.get("location", ""),
+            "url": "https://www.amazon.jobs" + j["job_path"],
+            "posted": posted,
+        })
+    return out
+
+
+def microsoft(slug):
+    out = []
+    for start in range(0, 30, 10):  # newest 30; their API rate-limits fast paging
+        if start:
+            time.sleep(1.5)
+        d = fetch_json("https://apply.careers.microsoft.com/api/pcsx/search?domain=microsoft.com"
+                       f"&query=&location=India&start={start}&sort_by=timestamp")
+        page = (d.get("data") or {}).get("positions") or []
+        for j in page:
+            loc = " / ".join(j.get("locations") or [])
+            if j.get("workLocationOption") == "remote":
+                loc += " (Remote)"
+            out.append({
+                "id": f"msft:{j['id']}",
+                "title": j["name"],
+                "location": loc,
+                "url": f"https://apply.careers.microsoft.com/careers/job/{j['id']}",
+                "posted": j.get("postedTs"),
+            })
+        if len(page) < 10:
+            break
+    return out
+
+
+def atlassian(slug):
+    return [{
+        "id": f"atl:{j['id']}",
+        "title": j["title"],
+        "location": " / ".join(j.get("locations") or []),
+        "url": j.get("applyUrl") or "https://www.atlassian.com/company/careers/all-jobs",
+        "posted": None,
+    } for j in fetch_json("https://www.atlassian.com/endpoint/careers/listings")]
+
+
 FETCHERS = {"greenhouse": greenhouse, "lever": lever, "ashby": ashby, "smartrecruiters": smartrecruiters,
-            "recruiterflow": recruiterflow, "mynexthire": mynexthire}
+            "recruiterflow": recruiterflow, "mynexthire": mynexthire, "workday": workday,
+            "amazon": amazon, "microsoft": microsoft, "atlassian": atlassian}
 
 
 def load_config():
@@ -184,6 +297,11 @@ def matches(job, rx):
     title, loc = job["title"], job["location"]
     if not rx["role"].search(title) or rx["exclude"].search(title):
         return False
+    if "resolve" in job:
+        try:
+            job["location"] = job.pop("resolve")()
+        except Exception:
+            return False
     # Only some hiring systems publish required experience; skip the check when they don't.
     if rx["max_experience"] is not None and job.get("exp_min") is not None             and float(job["exp_min"]) > rx["max_experience"]:
         return False
@@ -206,13 +324,13 @@ def scan(companies, rx):
         except Exception as e:  # one broken feed shouldn't kill the run
             return slug, [], f"{slug} ({ats}): {e}"
 
-    with cf.ThreadPoolExecutor(12) as ex:
+    with cf.ThreadPoolExecutor(24) as ex:
         for slug, found, err in ex.map(one, companies):
             if err:
                 errors.append(err)
             for j in found:
                 if matches(j, rx):
-                    j["company"] = slug
+                    j["company"] = slug.split(".")[0].split("/")[0]
                     jobs.append(j)
     return jobs, errors
 
@@ -228,6 +346,10 @@ def age(ts):
     return f"{mins // 1440}d ago"
 
 
+def when(job):
+    return job.get("posted_text") or age(job["posted"])
+
+
 def is_intern(title):
     return bool(re.search(r"intern|trainee|apprentice", title, re.I))
 
@@ -238,7 +360,7 @@ def format_job(j):
     referral = f"https://www.linkedin.com/search/results/people/?keywords={q}"
     e = html.escape
     return (f"{tag} <b>{e(j['company'].upper())}</b> · {e(j['title'])}\n"
-            f"📍 {e(j['location'] or '—')}  ⏱ {age(j['posted'])}\n"
+            f"📍 {e(j['location'] or '—')}  ⏱ {when(j)}\n"
             f"<a href=\"{e(j['url'])}\">Apply</a> · <a href=\"{e(referral)}\">Find referrers</a>")
 
 
@@ -279,6 +401,8 @@ def main():
         for ats, fn in FETCHERS.items():
             if ats == "mynexthire" and not re.fullmatch(r"[a-z0-9-]+", slug):
                 continue
+            if (ats == "workday") != ("/" in slug) or (ats in ("amazon", "microsoft", "atlassian") and ats != slug):
+                continue
             try:
                 found = fn(slug)
                 good = [j for j in found if matches(j, rx)]
@@ -293,7 +417,7 @@ def main():
 
     if args[:1] == ["--list"]:
         for j in sorted(jobs, key=lambda j: -(j["posted"] or 0)):
-            print(f"{age(j['posted']):>8}  {j['company']:14} {j['title'][:60]:60}  {j['location'][:40]}")
+            print(f"{when(j):>10}  {j['company']:14} {j['title'][:60]:60}  {j['location'][:40]}")
         print(f"\n{len(jobs)} matching jobs across {len({s for s, _ in companies})} companies")
         return
 
