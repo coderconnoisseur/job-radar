@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "*/15 * * * *"   # every 15 min (GitHub may start runs a few minutes late)
   workflow_dispatch:          # lets you hit "Run workflow" manually
+    inputs:
+      test_alert:
+        description: "Only send a test message to Telegram"
+        type: boolean
+        default: false
 
 permissions:
   contents: write             # needed to commit seen.json back
@@ -25,7 +30,7 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python radar.py
+        run: python radar.py ${{ inputs.test_alert && '--test-alert' || '' }}
       - name: Save seen jobs
         run: |
           git config user.name "job-radar"
