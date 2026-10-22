@@ -7,6 +7,9 @@
 #   jobs.lever.co/acme/...          ->  "acme" = "lever"
 #   jobs.ashbyhq.com/acme/...       ->  "acme" = "ashby"
 #   jobs.smartrecruiters.com/Acme/  ->  "Acme" = "smartrecruiters"
+#   recruiterflow.com/acme/jobs     ->  "acme" = "recruiterflow"
+#   acme.mynexthire.com/...         ->  "acme" = "mynexthire"
+# A company on two systems:  "acme" = ["greenhouse", "ashby"]
 # Then run:  python radar.py --check acme
 
 [filters]
@@ -20,6 +23,10 @@ india = '''india|bengaluru|bangalore|hyderabad|pune|mumbai|delhi|new delhi|gurga
 # A remote job passes only if every part of its location is a remote word or a
 # global region. "Remote, Global" passes; "Remote - US" or "Warsaw (Remote)" doesn't.
 remote = '''remote|fully remote|work from home|wfh|distributed'''
+# Drop jobs asking for more than this many years. Only applied where the hiring
+# system publishes it (currently MyNextHire: CoinDCX, AngelOne).
+max_experience = 2
+
 global_region = '''global|worldwide|anywhere|international|apac|asia|asia[- ]pacific|india'''
 
 [companies]
@@ -86,3 +93,35 @@ global_region = '''global|worldwide|anywhere|international|apac|asia|asia[- ]pac
 "asana" = "greenhouse"
 "intercom" = "greenhouse"
 "canva" = "smartrecruiters"
+
+# --- Crypto / web3 ---
+"coinswitch" = "recruiterflow"
+"coindcx" = "mynexthire"
+"bitgo" = "greenhouse"
+"gemini" = "greenhouse"
+"okx" = "greenhouse"
+"consensys" = ["greenhouse", "ashby"]
+"phantom" = "ashby"
+"mystenlabs" = "ashby"
+"aptoslabs" = "greenhouse"
+"offchainlabs" = "lever"
+"paradigm" = "ashby"
+"circle" = "ashby"
+"alchemy" = "ashby"
+
+# --- Fintech / trading (high fresher pay) ---
+"razorpaysoftwareprivatelimited" = "greenhouse"   # Razorpay
+"angelone" = "mynexthire"
+"towerresearchcapital" = "greenhouse"
+"imc" = "greenhouse"
+"jumptrading" = "greenhouse"
+
+# --- From your YC shortlist (others there post only on YC's Work at a Startup) ---
+"signoz" = "ashby"
+"bolna" = "ashby"
+"cardboard" = "ashby"
+"composio" = "ashby"
+"mastra" = "ashby"
+"enterpret" = "greenhouse"
+"commure" = "ashby"
+"litellm" = "ashby"

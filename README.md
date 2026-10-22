@@ -1,7 +1,7 @@
 # Job Radar
 
-Checks the careers feeds (Greenhouse, Lever, Ashby, SmartRecruiters) of ~60 companies every
-15 minutes and pings your phone on Telegram when a new SWE intern / entry-level job opens in
+Checks the careers feeds (Greenhouse, Lever, Ashby, SmartRecruiters, Recruiterflow, MyNextHire)
+of ~85 companies every 10 minutes and pings your phone on Telegram when a new SWE intern / entry-level job opens in
 India, or remote-from-anywhere. No dependencies beyond Python 3.11+.
 
 ## 1. Make a Telegram bot (2 min)
@@ -33,8 +33,22 @@ $env:TELEGRAM_BOT_TOKEN="<token>"; $env:TELEGRAM_CHAT_ID="<chat id>"; python rad
 3. Actions tab → enable workflows → "Job Radar" → **Run workflow** once.
    The first run sends a "started" message and saves what's already open. After that you only hear about new jobs.
 
-GitHub pauses scheduled workflows in repos with no activity for 60 days. If alerts stop,
-re-enable the workflow from the Actions tab.
+## 4. Make it run on time with cron-job.org
+
+GitHub's built-in scheduler often runs hours late, so the workflow's own schedule is only an
+hourly backup. cron-job.org (free) triggers it every 10 minutes instead:
+
+1. GitHub → Settings → Developer settings → Fine-grained tokens → Generate new token.
+   Repository access: only `job-radar`. Permissions → Actions: **Read and write**. Nothing else.
+2. cron-job.org → Create cronjob:
+   - URL: `https://api.github.com/repos/coderconnoisseur/job-radar/actions/workflows/radar.yml/dispatches`
+   - Schedule: every 10 minutes
+   - Advanced → Request method `POST`, body `{"ref":"main"}`, headers:
+     `Authorization: Bearer <your token>`, `Accept: application/vnd.github+json`,
+     `Content-Type: application/json`
+3. Save and "Test run". It should return HTTP 204, and a run appears in the Actions tab.
+
+The token expires on the date you chose; make a new one and update the header when it does.
 
 ## Tuning
 

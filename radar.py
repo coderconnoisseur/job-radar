@@ -9,6 +9,7 @@ Usage:
 Env vars (optional; without them alerts are printed to the console):
   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 """
+import base64
 import concurrent.futures as cf
 import html
 import json
@@ -117,25 +118,80 @@ def smartrecruiters(slug):
             return out
 
 
-FETCHERS = {"greenhouse": greenhouse, "lever": lever, "ashby": ashby, "smartrecruiters": smartrecruiters}
+def recruiterflow(slug):
+    # No JSON feed; the careers page embeds the job list as `window.jobsList = {...};`
+    req = urllib.request.Request(f"https://recruiterflow.com/{slug}/jobs", headers=UA)
+    with urllib.request.urlopen(req, timeout=20) as r:
+        page = r.read().decode("utf-8", "replace")
+    m = re.search(r"window\.jobsList\s*=\s*(\{.*?\});\s*$", page, re.M)
+    if not m:
+        raise ValueError("jobsList not found on page")
+    out = {}
+    for location, jobs in json.loads(m.group(1)).get("location", []):
+        for j in jobs:
+            loc = location + (" (Remote)" if j.get("remote_type") else "")
+            out[j["job_id"]] = {
+                "id": f"rf:{slug}:{j['job_id']}",
+                "title": j["job_name"],
+                "location": loc,
+                "url": f"https://recruiterflow.com/{j['apply_link']}",
+                "posted": iso_to_ts((j.get("last_opened") or "").replace("+0000", "+00:00")),
+            }
+    return list(out.values())
+
+
+def mynexthire(slug):
+    body = json.dumps({"source": "careers", "code": "", "filterByBuId": -1}).encode()
+    req = urllib.request.Request(f"https://{slug}.mynexthire.com/employer/careers/reqlist/get",
+                                 data=body, headers={**UA, "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        d = json.load(r)
+    out = []
+    for j in d.get("reqDetailsBOList") or []:
+        page = {"pageType": "jd", "cvSource": "careers", "reqId": int(j["reqId"]),
+                "requester": {"id": "", "code": "", "name": ""}, "page": "careers",
+                "bufilter": -1, "customFields": {}}
+        p = base64.b64encode(json.dumps(page, separators=(",", ":")).encode()).decode()
+        out.append({
+            "id": f"mnh:{slug}:{j['reqId']}",
+            "title": j["reqTitle"],
+            "location": j.get("location") or "",
+            # the site's own "share" link; it redirects to the job description
+            "url": f"https://{slug}.mynexthire.com/employer/jobs/sociallink?src%3Dcareers%26p%3D{p}",
+            "posted": iso_to_ts((j.get("approvedOn") or "").replace("+0000", "+00:00")),
+            "exp_min": j.get("expMin"),
+        })
+    return out
+
+
+FETCHERS = {"greenhouse": greenhouse, "lever": lever, "ashby": ashby, "smartrecruiters": smartrecruiters,
+            "recruiterflow": recruiterflow, "mynexthire": mynexthire}
 
 
 def load_config():
     cfg = tomllib.loads(CONFIG.read_text(encoding="utf-8"))
-    f = cfg["filters"]
+    f = dict(cfg["filters"])
+    max_exp = f.pop("max_experience", None)
     rx = {k: re.compile(v.strip(), re.I) for k, v in f.items()}
-    return cfg["companies"], rx
+    rx["max_experience"] = max_exp
+    # "slug" = "ats"  or  "slug" = ["ats1", "ats2"]  ->  list of (slug, ats)
+    pairs = [(slug, a) for slug, ats in cfg["companies"].items()
+             for a in ([ats] if isinstance(ats, str) else ats)]
+    return pairs, rx
 
 
 def matches(job, rx):
     title, loc = job["title"], job["location"]
     if not rx["role"].search(title) or rx["exclude"].search(title):
         return False
+    # Only some hiring systems publish required experience; skip the check when they don't.
+    if rx["max_experience"] is not None and job.get("exp_min") is not None             and float(job["exp_min"]) > rx["max_experience"]:
+        return False
     if rx["india"].search(loc):
         return True
     if not rx["remote"].search(loc):
         return False
-    parts = [p.strip() for p in re.split(r"[,/()\-–|;]+|or", loc)]
+    parts = [p.strip() for p in re.split(r"[,/()\-–|;]+|\bor\b", loc)]
     return all(not p or rx["remote"].fullmatch(p) or rx["global_region"].fullmatch(p) for p in parts)
 
 
@@ -151,7 +207,7 @@ def scan(companies, rx):
             return slug, [], f"{slug} ({ats}): {e}"
 
     with cf.ThreadPoolExecutor(12) as ex:
-        for slug, found, err in ex.map(one, companies.items()):
+        for slug, found, err in ex.map(one, companies):
             if err:
                 errors.append(err)
             for j in found:
@@ -221,6 +277,8 @@ def main():
     if args[:1] == ["--check"]:
         slug = args[1]
         for ats, fn in FETCHERS.items():
+            if ats == "mynexthire" and not re.fullmatch(r"[a-z0-9-]+", slug):
+                continue
             try:
                 found = fn(slug)
                 good = [j for j in found if matches(j, rx)]
@@ -236,7 +294,7 @@ def main():
     if args[:1] == ["--list"]:
         for j in sorted(jobs, key=lambda j: -(j["posted"] or 0)):
             print(f"{age(j['posted']):>8}  {j['company']:14} {j['title'][:60]:60}  {j['location'][:40]}")
-        print(f"\n{len(jobs)} matching jobs across {len(companies)} companies")
+        print(f"\n{len(jobs)} matching jobs across {len({s for s, _ in companies})} companies")
         return
 
     now = time.time()
@@ -251,7 +309,7 @@ def main():
 
     if first_run:
         # Don't flood you with every existing opening on day one.
-        send_telegram(f"🛰 Job Radar started. Watching {len(companies)} companies; "
+        send_telegram(f"🛰 Job Radar started. Watching {len({s for s, _ in companies})} companies; "
                       f"{len(jobs)} jobs already open match your filters (run --list to see them). "
                       f"From now on you'll only hear about new ones.")
         return
@@ -259,7 +317,7 @@ def main():
     new.sort(key=lambda j: -(j["posted"] or 0))
     if new:
         notify(new)
-    print(f"{len(new)} new / {len(jobs)} matching / {len(companies)} companies / {len(errors)} errors")
+    print(f"{len(new)} new / {len(jobs)} matching / {len({s for s, _ in companies})} companies / {len(errors)} errors")
 
 
 if __name__ == "__main__":
